@@ -1,0 +1,8 @@
+{
+  "name": "Remix INVEST AI",
+  "description": "Plataforma Android de análise, auditoria, simulação e gestão inteligente de investimentos com agentes especializados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

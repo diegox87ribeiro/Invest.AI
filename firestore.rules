@@ -1,0 +1,163 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAgentInsight(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.agentRole in ['ANALISTA', 'GESTOR', 'AUDITOR'] &&
+             data.ticker is string && data.ticker.size() >= 1 && data.ticker.size() <= 24 &&
+             data.conclusion in ['Comprar', 'Manter', 'Vender', 'Aguardar'] &&
+             data.confidence is int && data.confidence >= 0 && data.confidence <= 100 &&
+             data.thesis is string && data.thesis.size() >= 1 && data.thesis.size() <= 4000 &&
+             (!('sourceLabel' in data) || (data.sourceLabel is string && data.sourceLabel.size() <= 300)) &&
+             (!('dataBase' in data) || (data.dataBase is string && data.dataBase.size() <= 80)) &&
+             (!('indicatorsSummary' in data) || (data.indicatorsSummary is string && data.indicatorsSummary.size() <= 1500)) &&
+             (!('risksSummary' in data) || (data.risksSummary is string && data.risksSummary.size() <= 2000)) &&
+             (!('scenariosSummary' in data) || (data.scenariosSummary is string && data.scenariosSummary.size() <= 2000)) &&
+             data.usedPersonalData is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidConsolidatedReport(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.tickerFilter is string && data.tickerFilter.size() >= 1 && data.tickerFilter.size() <= 32 &&
+             data.consensusConclusion in ['Comprar', 'Manter', 'Vender', 'Aguardar'] &&
+             data.averageConfidence is int && data.averageConfidence >= 0 && data.averageConfidence <= 100 &&
+             data.coveredAgentsCount is int && data.coveredAgentsCount >= 1 && data.coveredAgentsCount <= 3 &&
+             (!('analystSummary' in data) || (data.analystSummary is string && data.analystSummary.size() <= 2000)) &&
+             (!('gestorSummary' in data) || (data.gestorSummary is string && data.gestorSummary.size() <= 2000)) &&
+             (!('auditorSummary' in data) || (data.auditorSummary is string && data.auditorSummary.size() <= 2000)) &&
+             (!('combinedRisks' in data) || (data.combinedRisks is string && data.combinedRisks.size() <= 4000)) &&
+             data.totalEquityBrl is number && data.totalEquityBrl >= 0 &&
+             data.hhiScore is number && data.hhiScore >= 0 && data.hhiScore <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPortfolioSnapshot(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200 &&
+             data.fileType is string && data.fileType.size() >= 1 && data.fileType.size() <= 24 &&
+             data.recordCount is int && data.recordCount >= 0 && data.recordCount <= 2000 &&
+             data.totalEquityBrl is number && data.totalEquityBrl >= 0 &&
+             data.cashBalanceBrl is number && data.cashBalanceBrl >= 0 &&
+             data.hhiScore is number && data.hhiScore >= 0 && data.hhiScore <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId) && isOwner(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isValidId(userId) && isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      match /agent_insights/{insightId} {
+        allow get: if isValidId(userId) && isValidId(insightId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId);
+
+        allow create: if isValidId(userId) && isValidId(insightId) && isOwner(userId) &&
+                         incoming().keys().hasAll(['userId', 'agentRole', 'ticker', 'conclusion', 'confidence', 'thesis', 'usedPersonalData', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'agentRole', 'ticker', 'conclusion', 'confidence', 'thesis',
+                           'sourceLabel', 'dataBase', 'indicatorsSummary', 'risksSummary', 'scenariosSummary',
+                           'usedPersonalData', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidAgentInsight(incoming(), userId);
+
+        allow update: if isValidId(userId) && isValidId(insightId) && isOwner(userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidAgentInsight(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['conclusion', 'confidence', 'thesis', 'risksSummary', 'scenariosSummary', 'updatedAt']);
+
+        allow delete: if isValidId(userId) && isValidId(insightId) && isOwner(userId);
+      }
+
+      match /consolidated_reports/{reportId} {
+        allow get: if isValidId(userId) && isValidId(reportId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId);
+
+        allow create: if isValidId(userId) && isValidId(reportId) && isOwner(userId) &&
+                         incoming().keys().hasAll(['userId', 'tickerFilter', 'consensusConclusion', 'averageConfidence', 'coveredAgentsCount', 'totalEquityBrl', 'hhiScore', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'tickerFilter', 'consensusConclusion', 'averageConfidence', 'coveredAgentsCount',
+                           'analystSummary', 'gestorSummary', 'auditorSummary', 'combinedRisks',
+                           'totalEquityBrl', 'hhiScore', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidConsolidatedReport(incoming(), userId);
+
+        allow update: if isValidId(userId) && isValidId(reportId) && isOwner(userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidConsolidatedReport(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'consensusConclusion', 'averageConfidence', 'coveredAgentsCount',
+                           'analystSummary', 'gestorSummary', 'auditorSummary', 'combinedRisks', 'updatedAt'
+                         ]);
+
+        allow delete: if isValidId(userId) && isValidId(reportId) && isOwner(userId);
+      }
+
+      match /portfolio_snapshots/{snapshotId} {
+        allow get: if isValidId(userId) && isValidId(snapshotId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId);
+
+        allow create: if isValidId(userId) && isValidId(snapshotId) && isOwner(userId) &&
+                         incoming().keys().hasAll(['userId', 'fileName', 'fileType', 'recordCount', 'totalEquityBrl', 'cashBalanceBrl', 'hhiScore', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'fileName', 'fileType', 'recordCount',
+                           'totalEquityBrl', 'cashBalanceBrl', 'hhiScore', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidPortfolioSnapshot(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(snapshotId) && isOwner(userId);
+      }
+    }
+  }
+}

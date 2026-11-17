@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">INVEST AI</string>
+    <string name="app_subtitle">Análise, Auditoria &amp; Gestão Inteligente</string>
+    <string name="demo_data_badge">DADOS DEMONSTRATIVOS (FICTÍCIOS)</string>
+    <string name="ai_firebase_notice">Recursos de IA generativa ao vivo com Gemini requerem Firebase AI Logic. Exibindo análises demonstrativas locais.</string>
+    <string name="security_no_orders">Plataforma exclusivamente analítica — nunca executa ordens financeiras nem solicita senhas bancárias.</string>
+    <string name="cd_open_menu">Abrir menu de módulos</string>
+    <string name="cd_brand_logo">Logo INVEST AI</string>
+</resources>
