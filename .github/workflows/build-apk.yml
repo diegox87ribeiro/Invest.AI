@@ -2,7 +2,7 @@ name: Gerar APK Debug (INVEST AI)
 
 on:
   push:
-    branches:3
+    branches:
       - main
       - master
   workflow_dispatch:
